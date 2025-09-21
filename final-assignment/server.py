@@ -1,3 +1,6 @@
+# The code is a simple multi-threaded HTTP server that handles GET and POST requests.
+# It serves static files from a 'resources' directory and allows JSON uploads to a dedicated 'uploads' subdirectory.
+# The server uses a thread pool to handle multiple client connections concurrently
 import socket
 import sys
 from datetime import datetime, timezone
@@ -12,7 +15,9 @@ init(autoreset=True)
 
 server_running = True
 
-
+# is_good_path: This function checks if the requested file path is safe and within the designated 'resources' directory.
+# This is a critical security measure to prevent directory traversal attacks.
+# It constructs an absolute path and verifies that it is a subdirectory of the 'resources' folder.
 def is_good_path(file_path):
     parts = file_path.replace("\\", "/").split("/")
 
@@ -24,7 +29,10 @@ def is_good_path(file_path):
 
     return is_inside, abs_path
 
-
+# handle_get: This function handles HTTP GET requests.
+# It validates the file path using `is_good_path`, determines the correct `Content-Type`, and reads the file content.
+# It constructs and returns a proper HTTP/1.1 response, including headers for `Content-Type`, `Content-Length`, `Date`, and `Connection`.
+# It also handles `FileNotFoundError` and other exceptions, returning an appropriate error response.
 def handle_get(file_path, http_version, connection):
     is_good, abs_path = is_good_path(file_path)
     if not is_good:
@@ -83,7 +91,9 @@ def handle_get(file_path, http_version, connection):
 
     return header_bytes + content_bytes
 
-
+# error_res_html: This function generates a complete HTML response for an error.
+# It takes a status message (e.g., "404 Not Found") and constructs an HTML page with that message.
+# It then builds the appropriate HTTP response headers and returns the full response as bytes.
 def error_res_html(message):
     print(Fore.RED + f"Error: {message}\n")
     content = f"""  
@@ -117,7 +127,10 @@ def error_res_html(message):
 
     return header_bytes + content_bytes
 
-
+# handle_post: This function handles HTTP POST requests.
+# It's specifically designed to handle JSON data sent to the `/upload` path.
+# It parses the request headers to check the `Content-Type` and `Content-Length`.
+# The function then parses the JSON body, saves it to a uniquely named file in the `resources/uploads` directory, and returns a `201 Created` response with a JSON payload.
 def handle_post(path, headers, body, http_version, connection):
     # Only accept /upload for POST
     if path != "/upload":
@@ -174,6 +187,11 @@ def handle_post(path, headers, body, http_version, connection):
     header_bytes = ("\r\n".join(headers) + "\r\n\r\n").encode("utf-8")
     return header_bytes + body_bytes
 
+# handle_client: This function is the core of the client-side interaction. It is executed by a thread for each new connection.
+# It receives and parses the HTTP request, identifying the method (GET or POST), path, and headers.
+# Based on the method, it dispatches the request to either `handle_get` or `handle_post`.
+# It sends the resulting response back to the client and manages the connection, closing it if a `Connection: close` header is present.
+# It also includes robust error handling for network issues and malformed requests.
 def handle_client(client_socket, addr):
     print(Fore.YELLOW + f"Connection from: {addr}\n")
     client_socket.settimeout(5.0)
@@ -261,7 +279,10 @@ def handle_client(client_socket, addr):
         client_socket.close()
         print(Fore.YELLOW + f"Connection closed: {addr}\n")
 
-
+# start_server: This function sets up and starts the main server.
+# It creates a socket, binds it to the specified host and port, and listens for incoming connections.
+# It uses a `ThreadPoolExecutor` to manage a pool of worker threads, with each new connection being submitted to `handle_client`.
+# The server runs indefinitely until a `KeyboardInterrupt` (e.g., Ctrl+C) is received, at which point it gracefully shuts down.
 def start_server(host, port, thread_pool_size):
     global server_running
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
